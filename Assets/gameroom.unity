@@ -19184,6 +19184,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Headphone
       objectReference: {fileID: 0}
+    - target: {fileID: 3589532618173301235, guid: 739f5379cf2ce4941a5d96c320acb2a2, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 4223044158016035657, guid: 739f5379cf2ce4941a5d96c320acb2a2, type: 3}
       propertyPath: m_LocalPosition.x
       value: -2.384
