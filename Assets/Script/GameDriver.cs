@@ -12,7 +12,7 @@ using Newtonsoft.Json.Linq;
 public class GameDriver : MonoBehaviour
 {
     public TMP_InputField inputField;     // drag your input field here
-    public TMP_Text avatarSpeechText;     // optional: shows the avatar's reply
+    public TMP_Text avatarSpeechText;     // shows the avatar's reply
 
     public string apiKey = "";
     public string model = "deepseek-v4-flash";
@@ -122,7 +122,7 @@ public class GameDriver : MonoBehaviour
 
     void HandleResult(TurnResult result)
     {
-        TriggerGesture(result.gesture);                                   // Person 2's Animator
+        TriggerGesture(result.gesture); // Person 2's Animator
         if (avatarSpeechText != null) avatarSpeechText.text = result.speech;
         Debug.Log($"[avatar] {result.speech}  [gesture: {result.gesture}]");
 
