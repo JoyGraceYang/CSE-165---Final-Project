@@ -13,6 +13,7 @@ public class GameDriver : MonoBehaviour
 {
     public TMP_InputField inputField;     // drag your input field here
     public TMP_Text avatarSpeechText;     // shows the avatar's reply
+    public Animator avatarAnimator;       // avatar animator for gestures
 
     public string apiKey = "";
     public string model = "deepseek-v4-flash";
@@ -122,8 +123,12 @@ public class GameDriver : MonoBehaviour
 
     void HandleResult(TurnResult result)
     {
-        TriggerGesture(result.gesture); // Person 2's Animator
         if (avatarSpeechText != null) avatarSpeechText.text = result.speech;
+        if (avatarAnimator != null && !string.IsNullOrEmpty(result.gesture))
+        {
+            string triggerName = result.gesture.ToLower().Trim();
+            avatarAnimator.SetTrigger(triggerName);
+        }
         Debug.Log($"[avatar] {result.speech}  [gesture: {result.gesture}]");
 
         switch (result.outcome)
@@ -133,7 +138,5 @@ public class GameDriver : MonoBehaviour
             case Outcome.GaveUp:     Debug.Log(">>> player gave up <<<"); break;
         }
     }
-
-    // Person 2 replaces this with the real Animator trigger.
     void TriggerGesture(string tag) => Debug.Log($"[gesture] {tag}");
 }
