@@ -1,5 +1,4 @@
-// GameLogic.cs — pure C#, NO UnityEngine. Same logic as the console harness.
-// Keep it Unity-free so you can still test it standalone with dotnet run.
+// GameLogic.cs — pure C#, NO UnityEngine
 
 using System;
 using Newtonsoft.Json;   // Unity: add package "com.unity.nuget.newtonsoft-json" via Package Manager
