@@ -1,6 +1,4 @@
-// GameDriver.cs — real LLM call via DeepSeek (OpenAI-compatible Chat Completions).
-// Requires the Newtonsoft package (com.unity.nuget.newtonsoft-json).
-// Attach to a GameObject, drag in a TMP InputField, paste your DeepSeek API key in the Inspector.
+
 
 using UnityEngine;
 using UnityEngine.Networking;
@@ -9,16 +7,34 @@ using System.Collections;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
+// ===================== MACY — ADDED =====================
+using UnityEngine.InputSystem;
+using System.Diagnostics;
+using System.Speech.Recognition;
+// ===================== MACY — END =======================
+
 public class GameDriver : MonoBehaviour
 {
-    public TMP_InputField inputField;     // drag your input field here
     public TMP_Text avatarSpeechText;     // shows the avatar's reply
     public Animator avatarAnimator;       // avatar animator for gestures
 
     public string apiKey = "";
-    public string model = "deepseek-v4-flash";
+    public string model = "deepseek-chat";
+
+    // added -Macy
+    [Header("Macy — Recording")]
+    [Tooltip("Max seconds the player can hold the mic button")]
+    public int maxRecordingSeconds = 8;
+    // end
 
     GameLogic game;
+
+    // added -Macy
+    bool _isRecording = false;
+    bool _isBusy = false;
+    AudioClip _clip;
+    SpeechRecognitionEngine _recognizer;
+    // end
 
     // The system prompt. @"..." is a VERBATIM string: it can span lines, and every
     // double-quote inside is written as "" (two quotes). Apostrophes need no escaping.
@@ -72,18 +88,54 @@ public class GameDriver : MonoBehaviour
     void Start()
     {
         game = new GameLogic();
-        Debug.Log($"[debug] secret object: {game.SecretObject}");
-        if (inputField != null)
-            inputField.onSubmit.AddListener(OnPlayerQuestion);
+        UnityEngine.Debug.Log($"[debug] secret object: {game.SecretObject}");
+
+        // other vars added -Macy
+        _recognizer = new SpeechRecognitionEngine();
+        _recognizer.LoadGrammar(new DictationGrammar());
+        _recognizer.SetInputToDefaultAudioDevice();
+        _recognizer.SpeechRecognized += OnSpeechRecognized;
+        _recognizer.SpeechRecognitionRejected += OnSpeechRejected;
+        UnityEngine.Debug.Log("[GameDriver] Ready! Hold [Space] to ask a question.");
+        // end -macy
     }
 
-    void OnPlayerQuestion(string question)
+    // added Update method for SST trigger -Macy
+    void Update()
     {
-        inputField.text = "";
-        inputField.ActivateInputField();
-        if (string.IsNullOrWhiteSpace(question)) return;
-        StartCoroutine(AskLLM(question));   // network call runs async; resumes when the reply lands
+        if (_isBusy) return;
+
+        if (Keyboard.current.spaceKey.wasPressedThisFrame && !_isRecording)
+        {
+            _isRecording = true;
+            _clip = Microphone.Start(null, false, maxRecordingSeconds, 16000);
+            _recognizer.RecognizeAsync(RecognizeMode.Single);
+            UnityEngine.Debug.Log("[GameDriver] Recording... ask your question, then release [Space].");
+        }
+
+        if (Keyboard.current.spaceKey.wasReleasedThisFrame && _isRecording)
+        {
+            _isRecording = false;
+            _isBusy = true;
+            Microphone.End(null);
+            UnityEngine.Debug.Log("[GameDriver] Processing your question...");
+        }
     }
+
+    private void OnSpeechRecognized(object sender, SpeechRecognizedEventArgs e)
+    {
+        string transcript = e.Result.Text;
+        float confidence = e.Result.Confidence;
+        UnityEngine.Debug.Log($"[GameDriver] Heard: \"{transcript}\" (confidence: {confidence:P0})");
+        StartCoroutine(AskLLM(transcript));
+    }
+
+    private void OnSpeechRejected(object sender, SpeechRecognitionRejectedEventArgs e)
+    {
+        UnityEngine.Debug.LogWarning("[GameDriver] Couldn't understand — try again.");
+        _isBusy = false;
+    }
+    // end -Macy
 
     IEnumerator AskLLM(string question)
     {
@@ -111,12 +163,15 @@ public class GameDriver : MonoBehaviour
 
             if (req.result != UnityWebRequest.Result.Success)
             {
-                Debug.LogError("API error: " + req.error + "\n" + req.downloadHandler.text);
+                UnityEngine.Debug.LogError("API error: " + req.error + "\n" + req.downloadHandler.text);
+                // new addition - Macy
+                _isBusy = false;
+                // end addition - Macy
                 yield break;
             }
 
             string content = JObject.Parse(req.downloadHandler.text)["choices"][0]["message"]["content"].ToString();
-            Debug.Log("[raw JSON] " + content); 
+            UnityEngine.Debug.Log("[raw JSON] " + content);
             HandleResult(game.ProcessTurn(content));
         }
     }
@@ -129,14 +184,48 @@ public class GameDriver : MonoBehaviour
             string triggerName = result.gesture.ToLower().Trim();
             avatarAnimator.SetTrigger(triggerName);
         }
-        Debug.Log($"[avatar] {result.speech}  [gesture: {result.gesture}]");
+        UnityEngine.Debug.Log($"[avatar] {result.speech}  [gesture: {result.gesture}]");
+
+        // calling Speak -Macy
+        Speak(result.speech);
+        // end
 
         switch (result.outcome)
         {
-            case Outcome.PlayerWins: Debug.Log(">>> PLAYER WINS <<<"); break;
-            case Outcome.AvatarWins: Debug.Log(">>> AVATAR WINS <<<"); break;
-            case Outcome.GaveUp:     Debug.Log(">>> player gave up <<<"); break;
+            case Outcome.PlayerWins: UnityEngine.Debug.Log(">>> PLAYER WINS <<<"); break;
+            case Outcome.AvatarWins: UnityEngine.Debug.Log(">>> AVATAR WINS <<<"); break;
+            case Outcome.GaveUp: UnityEngine.Debug.Log(">>> player gave up <<<"); break;
+        }
+
+        // added -Macy
+        _isBusy = false;
+        // end
+    }
+
+    void TriggerGesture(string tag) => UnityEngine.Debug.Log($"[gesture] {tag}");
+
+    //added Speak method for built in TTS - Macy
+    void Speak(string text)
+    {
+        string safe = text.Replace("'", "");
+        UnityEngine.Debug.Log($"[GameDriver] Speaking: \"{text}\"");
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = "PowerShell",
+            Arguments = $"-Command \"Add-Type -AssemblyName System.Speech; " +
+                        $"(New-Object System.Speech.Synthesis.SpeechSynthesizer).Speak('{safe}')\"",
+            CreateNoWindow = true,
+            UseShellExecute = false
+        });
+    }
+
+    void OnDestroy()
+    {
+        if (_recognizer != null)
+        {
+            _recognizer.RecognizeAsyncStop();
+            _recognizer.Dispose();
         }
     }
-    void TriggerGesture(string tag) => Debug.Log($"[gesture] {tag}");
+    //end addition -Macy
 }
